@@ -1,1 +1,54 @@
+export default class EditFormView {
+  constructor(pointData = null) {
+    this._point = pointData;
+    this._element = null;
+  }
 
+  getTemplate() {
+          <form class="trip-events__trip-sort  trip-sort" action="#" method="get">
+            <div class="trip-sort__item  trip-sort__item--day">
+              <input id="sort-day" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-day" checked>
+              <label class="trip-sort__btn" for="sort-day">Day</label>
+            </div>
+
+            <div class="trip-sort__item  trip-sort__item--event">
+              <input id="sort-event" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-event" disabled>
+              <label class="trip-sort__btn" for="sort-event">Event</label>
+            </div>
+
+            <div class="trip-sort__item  trip-sort__item--time">
+              <input id="sort-time" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-time">
+              <label class="trip-sort__btn" for="sort-time">Time</label>
+            </div>
+
+            <div class="trip-sort__item  trip-sort__item--price">
+              <input id="sort-price" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-price">
+              <label class="trip-sort__btn" for="sort-price">Price</label>
+            </div>
+
+            <div class="trip-sort__item  trip-sort__item--offer">
+              <input id="sort-offer" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-offer" disabled>
+              <label class="trip-sort__btn" for="sort-offer">Offers</label>
+            </div>
+          </form>
+    return `
+      <form class="event event--edit" action="#" method="post">
+        <!-- Здесь будет разметка формы редактирования события -->
+        <p>Скопируйте содержимое из markup/edit-point.html</p>
+      </form>
+    `;
+  }
+
+  getElement() {
+    if (!this._element) {
+      this._element = document.createElement('div');
+      this._element.innerHTML = this.getTemplate();
+      this._element = this._element.firstElementChild;
+    }
+    return this._element;
+  }
+
+  removeElement() {
+    this._element = null;
+  }
+}
