@@ -1,12 +1,13 @@
 const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
   entry: './main.js',
 
   output: {
     path: path.resolve(__dirname, 'build'),
-    filename: 'bundle.js',
+    filename: 'bundle.[contenthash].js',
     clean: true,
   },
 
@@ -28,11 +29,19 @@ module.exports = {
   },
 
   plugins: [
+    new HtmlWebpackPlugin({
+      template: './public/index.html',
+      filename: 'index.html',
+      inject: 'body',
+    }),
     new CopyWebpackPlugin({
       patterns: [
         {
           from: 'public',
           to: 'build',
+          globOptions: {
+            ignore: ['**/index.html'],
+          },
         },
       ],
     }),
