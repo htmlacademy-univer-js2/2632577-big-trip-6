@@ -34,7 +34,7 @@ export default class EditFormView {
     return `
       <form class="event event--edit" action="#" method="post">
         <!-- Здесь будет разметка формы редактирования события -->
-        <p>Скопируйте содержимое из markup/edit-point.html</p>
+        <p>markup/edit-point.html</p>
       </form>
     `;
   }
