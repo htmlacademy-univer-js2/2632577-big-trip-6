@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "eslint src/"
     "build": "webpack --mode production"
+    "start": "webpack serve --mode development --open"
   },
   "devDependencies": {
     "eslint": "8.38.0",
