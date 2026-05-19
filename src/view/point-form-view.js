@@ -33,7 +33,7 @@ export default class PointFormView {
     return `
       <form class="event event--edit" action="#" method="post">
         <!-- Здесь будет разметка формы создания нового события -->
-        <p>Скопируйте содержимое из markup/add-new-point.html</p>
+        <p>markup/add-new-point.html</p>
       </form>
     `;
   }
