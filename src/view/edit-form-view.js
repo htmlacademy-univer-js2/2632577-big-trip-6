@@ -13,6 +13,9 @@ export default class EditFormView extends AbstractView {
     this.#selectedOffers = selectedOffers;
     this.#allOffersByType = allOffersByType;
   }
+  get point() {
+    return this.#point;
+  }
 
   get template() {
     const point = this.#point || {};
@@ -129,6 +132,7 @@ export default class EditFormView extends AbstractView {
       </form>
     `;
   }
+  
 
   setSubmitHandler(callback) {
     this._callback.submit = callback;
