@@ -2,26 +2,14 @@ export default class FilterModel {
   #activeFilter = 'everything';
   #observers = [];
 
-  addObserver(observer) {
-    this.#observers.push(observer);
-  }
+  addObserver(observer) { this.#observers.push(observer); }
+  removeObserver(observer) { this.#observers = this.#observers.filter(o => o !== observer); }
+  #notify() { this.#observers.forEach(o => o()); }
 
-  removeObserver(observer) {
-    this.#observers = this.#observers.filter(item => item !== observer);
+  setFilter(filter) {
+    if (this.#activeFilter === filter) return;
+    this.#activeFilter = filter;
+    this.#notify();
   }
-
-  #notifyObservers() {
-    this.#observers.forEach(observer => observer());
-  }
-
-  setFilter(filterType) {
-    if (this.#activeFilter !== filterType) {
-      this.#activeFilter = filterType;
-      this.#notifyObservers();
-    }
-  }
-
-  getFilter() {
-    return this.#activeFilter;
-  }
+  getFilter() { return this.#activeFilter; }
 }
