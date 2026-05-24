@@ -16,12 +16,13 @@ export default class TripPresenter {
   #filterComponent = null;
   #sortComponent = null;
   #emptyListComponent = null;
-
   #pointPresenters = new Map();
   #activePointPresenter = null;
 
   #createFormComponent = null;
   #isCreateFormShown = false;
+
+  #currentSortType = 'day';
 
   constructor(model) {
     this.#model = model;
@@ -49,21 +50,28 @@ export default class TripPresenter {
   }
 
   #renderSort() {
-    this.#sortComponent = new SortView();
+    this.#sortComponent = new SortView(this.#handleSortTypeChange.bind(this));
     this.#tripEventsContainer.prepend(this.#sortComponent.element);
+  }
+
+  #handleSortTypeChange(sortType) {
+    if (this.#currentSortType === sortType) return;
+    this.#currentSortType = sortType;
+    this.#renderPoints();
   }
 
   #renderPoints() {
     const points = this.#model.getPoints();
+    const sortedPoints = this.#model.getPointsSortedBy(this.#currentSortType, points);
     this.#clearPointsList();
 
-    if (points.length === 0) {
+    if (sortedPoints.length === 0) {
       this.#emptyListComponent = new EmptyListView(this.#getCurrentFilter());
       render(this.#emptyListComponent, this.#listContainer);
       return;
     }
 
-    points.forEach(point => {
+    sortedPoints.forEach(point => {
       const destination = this.#model.getDestinationById(point.destinationId);
       const offers = this.#model.getOffersByIds(point.offersIds);
       const allOffersByType = this.#model.getOffersByType(point.type);
@@ -99,12 +107,13 @@ export default class TripPresenter {
     pointPresenter.init(updatedPoint, destination, offers, allOffersByType);
   }
 
-  #handleModeChange() {
+  #handleModeChange(activePresenter) {
     this.#pointPresenters.forEach(presenter => {
-      if (presenter !== this.#activePointPresenter) {
+      if (presenter !== activePresenter) {
         presenter.resetView();
       }
     });
+    this.#activePointPresenter = activePresenter;
   }
 
   #renderCreateForm() {
