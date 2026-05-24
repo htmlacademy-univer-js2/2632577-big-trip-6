@@ -2,6 +2,7 @@ import AbstractView from '../framework/abstract-view.js';
 
 export default class FilterView extends AbstractView {
   #filters = [];
+  #onFilterChange = null;
 
   constructor(filters) {
     super();
@@ -21,4 +22,17 @@ export default class FilterView extends AbstractView {
       </form>
     `;
   }
+
+  setFilterChangeHandler(callback) {
+    this.#onFilterChange = callback;
+    this.element.querySelectorAll('.trip-filters__filter-input').forEach(input => {
+      if (!input.disabled) {
+        input.addEventListener('change', this.#filterChangeHandler);
+      }
+    });
+  }
+
+  #filterChangeHandler = (evt) => {
+    this.#onFilterChange?.(evt.target.value);
+  };
 }

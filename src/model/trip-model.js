@@ -9,10 +9,24 @@ export default class TripModel {
   #offers = null;
   #points = null;
 
+  #observers = [];
+
   constructor() {
     this.#destinations = generateDestinations();
     this.#offers = generateOffers();
     this.#points = generatePoints(this.#destinations, this.#offers);
+  }
+
+  addObserver(observer) {
+    this.#observers.push(observer);
+  }
+
+  removeObserver(observer) {
+    this.#observers = this.#observers.filter(item => item !== observer);
+  }
+
+  #notifyObservers() {
+    this.#observers.forEach(observer => observer());
   }
 
   getDestinations() {
@@ -31,6 +45,10 @@ export default class TripModel {
     return this.#destinations.find(dest => dest.id === id);
   }
 
+  getDestinationByName(name) {
+    return this.#destinations.find(dest => dest.name === name);
+  }
+
   getOffersByIds(ids) {
     return this.#offers.filter(offer => ids.includes(offer.id));
   }
@@ -43,6 +61,20 @@ export default class TripModel {
     const index = this.#points.findIndex(p => p.id === updatedPoint.id);
     if (index !== -1) {
       this.#points[index] = { ...this.#points[index], ...updatedPoint };
+      this.#notifyObservers();
+    }
+  }
+
+  addPoint(newPoint) {
+    this.#points.push(newPoint);
+    this.#notifyObservers();
+  }
+
+  deletePoint(pointId) {
+    const index = this.#points.findIndex(p => p.id === pointId);
+    if (index !== -1) {
+      this.#points.splice(index, 1);
+      this.#notifyObservers();
     }
   }
 
@@ -62,28 +94,35 @@ export default class TripModel {
     }
   }
 
-  getFilters(points) {
+  getPointsFilteredBy(filterType, points = this.#points) {
     const now = new Date();
-    const filters = [
-      { name: 'everything', title: 'Everything', isChecked: true, isDisabled: false },
-      { name: 'future', title: 'Future', isChecked: false, isDisabled: true },
-      { name: 'present', title: 'Present', isChecked: false, isDisabled: true },
-      { name: 'past', title: 'Past', isChecked: false, isDisabled: true }
-    ];
-
-    filters.forEach(filter => {
-      if (filter.name === 'future') {
-        filter.isDisabled = !points.some(p => new Date(p.startDateTime) > now);
-      } else if (filter.name === 'present') {
-        filter.isDisabled = !points.some(p => {
+    switch (filterType) {
+      case 'future':
+        return points.filter(p => new Date(p.startDateTime) > now);
+      case 'present':
+        return points.filter(p => {
           const start = new Date(p.startDateTime);
           const end = new Date(p.endDateTime);
           return start <= now && now <= end;
         });
-      } else if (filter.name === 'past') {
-        filter.isDisabled = !points.some(p => new Date(p.endDateTime) < now);
-      }
-    });
-    return filters;
+      case 'past':
+        return points.filter(p => new Date(p.endDateTime) < now);
+      default:
+        return [...points];
+    }
+  }
+
+  getFilters(points = this.#points) {
+    const now = new Date();
+    return [
+      { name: 'everything', title: 'Everything', isChecked: true, isDisabled: false },
+      { name: 'future', title: 'Future', isChecked: false, isDisabled: !points.some(p => new Date(p.startDateTime) > now) },
+      { name: 'present', title: 'Present', isChecked: false, isDisabled: !points.some(p => {
+        const start = new Date(p.startDateTime);
+        const end = new Date(p.endDateTime);
+        return start <= now && now <= end;
+      }) },
+      { name: 'past', title: 'Past', isChecked: false, isDisabled: !points.some(p => new Date(p.endDateTime) < now) }
+    ];
   }
 }
