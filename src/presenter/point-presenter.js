@@ -15,15 +15,17 @@ export default class PointPresenter {
   #onModeChange = null;
   #onGetOffersByType = null;
   #onGetDestinationByName = null;
+  #onDeletePoint = null;
 
   #isEditMode = false;
 
-  constructor(container, onDataChange, onModeChange, onGetOffersByType, onGetDestinationByName) {
+  constructor(container, onDataChange, onModeChange, onGetOffersByType, onGetDestinationByName, onDeletePoint) {
     this.#parentContainer = container;
     this.#onDataChange = onDataChange;
     this.#onModeChange = onModeChange;
     this.#onGetOffersByType = onGetOffersByType;
     this.#onGetDestinationByName = onGetDestinationByName;
+    this.#onDeletePoint = onDeletePoint;
   }
 
   init(point, destination, offers, allOffersByType) {
@@ -51,6 +53,7 @@ export default class PointPresenter {
     this.#editFormComponent.setSubmitHandler(() => this.#replaceFormToPointAndSave());
     this.#editFormComponent.setCloseHandler(() => this.#replaceFormToPoint());
     this.#editFormComponent.setEscKeydownHandler(() => this.#replaceFormToPoint());
+    this.#editFormComponent.setDeleteHandler(() => this.#handleDeleteClick());
 
     if (prevPointComponent === null || prevEditFormComponent === null) {
       render(this.#pointComponent, this.#parentContainer);
@@ -106,6 +109,10 @@ export default class PointPresenter {
       this.#editFormComponent.updateElement({ destination: newDestination });
       this.#destination = newDestination;
     }
+  }
+
+  #handleDeleteClick() {
+    this.#onDeletePoint(this.#point.id);
   }
 
   resetView() {
