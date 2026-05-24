@@ -2,20 +2,26 @@ import AbstractStatefulView from '../framework/abstract-stateful-view.js';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration.js';
+
+dayjs.extend(duration);
 
 export default class EditFormView extends AbstractStatefulView {
   #callbacks = {
     submit: null,
     close: null,
     esc: null,
-    destinationChange: null,
+    delete: null,
   };
   #datepickerStart = null;
   #datepickerEnd = null;
+  #onGetOffersByType = null;
+  #onGetDestinationByName = null;
 
-  constructor(point, destination, selectedOffers, allOffersByType, onDestinationChange) {
+  constructor(point, destination, selectedOffers, allOffersByType, onGetDestinationByName, onGetOffersByType) {
     super();
-    this.#callbacks.destinationChange = onDestinationChange;
+    this.#onGetDestinationByName = onGetDestinationByName;
+    this.#onGetOffersByType = onGetOffersByType;
     this._setState(EditFormView.parseStateToRaw(point, destination, selectedOffers, allOffersByType));
     this._restoreHandlers();
   }
@@ -105,7 +111,7 @@ export default class EditFormView extends AbstractStatefulView {
             <label class="event__label event__type-output" for="event-destination-1">${type}</label>
             <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off">
             <datalist id="destination-list-1">
-              <!-- города можно подставить из модели, но для простоты оставляем -->
+              <!-- Здесь можно подставить все возможные города, но они будут добавлены из презентера -->
             </datalist>
           </div>
 
@@ -119,7 +125,7 @@ export default class EditFormView extends AbstractStatefulView {
 
           <div class="event__field-group event__field-group--price">
             <label class="visually-hidden" for="event-price-1">Price</label>
-            <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}">
+            <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}" min="0" step="1">
           </div>
 
           <button class="event__save-btn btn btn--blue" type="submit">Save</button>
@@ -153,17 +159,22 @@ export default class EditFormView extends AbstractStatefulView {
 
   setSubmitHandler(callback) {
     this.#callbacks.submit = callback;
-    this.element.querySelector('form').addEventListener('submit', this.#submitHandler);
   }
 
   setCloseHandler(callback) {
     this.#callbacks.close = callback;
-    this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
   }
 
   setEscKeydownHandler(callback) {
     this.#callbacks.esc = callback;
-    document.addEventListener('keydown', this.#escKeydownHandler);
+  }
+
+  setDeleteHandler(callback) {
+    this.#callbacks.delete = callback;
+  }
+
+  getState() {
+    return this._state;
   }
 
   #submitHandler = (evt) => {
@@ -176,6 +187,11 @@ export default class EditFormView extends AbstractStatefulView {
     this.#callbacks.close?.();
   };
 
+  #deleteClickHandler = (evt) => {
+    evt.preventDefault();
+    this.#callbacks.delete?.();
+  };
+
   #escKeydownHandler = (evt) => {
     if (evt.key === 'Escape') {
       evt.preventDefault();
@@ -186,16 +202,20 @@ export default class EditFormView extends AbstractStatefulView {
   #handleTypeChange = (evt) => {
     const newType = evt.target.value;
     if (newType === this._state.point.type) return;
+    const newAllOffers = this.#onGetOffersByType(newType);
     this.updateElement({
       point: { ...this._state.point, type: newType, offersIds: [] },
       selectedOffers: [],
-      allOffersByType: this.#callbacks.getOffersByType?.(newType) || []
+      allOffersByType: newAllOffers
     });
   };
 
   #handleDestinationChange = (evt) => {
     const newDestinationName = evt.target.value;
-    this.#callbacks.destinationChange?.(newDestinationName);
+    const newDestination = this.#onGetDestinationByName(newDestinationName);
+    if (newDestination) {
+      this.updateElement({ destination: newDestination });
+    }
   };
 
   #handleOfferChange = (evt) => {
@@ -209,6 +229,15 @@ export default class EditFormView extends AbstractStatefulView {
       newSelectedOffers = newSelectedOffers.filter(o => o.id !== offerId);
     }
     this.updateElement({ selectedOffers: newSelectedOffers });
+  };
+
+  #handlePriceChange = (evt) => {
+    const newPrice = parseInt(evt.target.value, 10);
+    if (!isNaN(newPrice)) {
+      this.updateElement({
+        point: { ...this._state.point, basePrice: newPrice }
+      });
+    }
   };
 
   #initDatepickers() {
@@ -246,6 +275,7 @@ export default class EditFormView extends AbstractStatefulView {
   _restoreHandlers() {
     this.element.querySelector('form').addEventListener('submit', this.#submitHandler);
     this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
+    this.element.querySelector('.event__reset-btn').addEventListener('click', this.#deleteClickHandler);
     document.addEventListener('keydown', this.#escKeydownHandler);
 
     const typeRadios = this.element.querySelectorAll('.event__type-input');
@@ -260,6 +290,10 @@ export default class EditFormView extends AbstractStatefulView {
     offerCheckboxes.forEach(checkbox => {
       checkbox.addEventListener('change', this.#handleOfferChange);
     });
+    const priceInput = this.element.querySelector('.event__input--price');
+    if (priceInput) {
+      priceInput.addEventListener('change', this.#handlePriceChange);
+    }
 
     this.#initDatepickers();
   }
