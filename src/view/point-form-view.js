@@ -1,53 +1,118 @@
-export default class PointFormView {
+import AbstractView from '../framework/abstract-view.js';
+
+export default class PointFormView extends AbstractView {
   constructor() {
-    this._element = null;
+    super();
   }
 
-  getTemplate() {
-         <form class="trip-events__trip-sort  trip-sort" action="#" method="get">
-            <div class="trip-sort__item  trip-sort__item--day">
-              <input id="sort-day" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-day" checked>
-              <label class="trip-sort__btn" for="sort-day">Day</label>
-            </div>
-
-            <div class="trip-sort__item  trip-sort__item--event">
-              <input id="sort-event" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-event" disabled>
-              <label class="trip-sort__btn" for="sort-event">Event</label>
-            </div>
-
-            <div class="trip-sort__item  trip-sort__item--time">
-              <input id="sort-time" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-time">
-              <label class="trip-sort__btn" for="sort-time">Time</label>
-            </div>
-
-            <div class="trip-sort__item  trip-sort__item--price">
-              <input id="sort-price" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-price">
-              <label class="trip-sort__btn" for="sort-price">Price</label>
-            </div>
-
-            <div class="trip-sort__item  trip-sort__item--offer">
-              <input id="sort-offer" class="trip-sort__input  visually-hidden" type="radio" name="trip-sort" value="sort-offer" disabled>
-              <label class="trip-sort__btn" for="sort-offer">Offers</label>
-            </div>
-          </form>
+  get template() {
     return `
       <form class="event event--edit" action="#" method="post">
-        <!-- Здесь будет разметка формы создания нового события -->
-        <p>markup/add-new-point.html</p>
+        <header class="event__header">
+          <div class="event__type-wrapper">
+            <label class="event__type event__type-btn" for="event-type-toggle-1">
+              <span class="visually-hidden">Choose event type</span>
+              <img class="event__type-icon" width="17" height="17" src="img/icons/flight.png" alt="Event type icon">
+            </label>
+            <input class="event__type-toggle visually-hidden" id="event-type-toggle-1" type="checkbox">
+            <div class="event__type-list">
+              <fieldset class="event__type-group">
+                <legend class="visually-hidden">Event type</legend>
+                ${this.#getTypeRadios()}
+              </fieldset>
+            </div>
+          </div>
+
+          <div class="event__field-group event__field-group--destination">
+            <label class="event__label event__type-output" for="event-destination-1">Flight</label>
+            <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="" list="destination-list-1">
+            <datalist id="destination-list-1"></datalist>
+          </div>
+
+          <div class="event__field-group event__field-group--time">
+            <label class="visually-hidden" for="event-start-time-1">From</label>
+            <input class="event__input event__input--time" id="event-start-time-1" type="datetime-local" name="event-start-time" value="">
+            &mdash;
+            <label class="visually-hidden" for="event-end-time-1">To</label>
+            <input class="event__input event__input--time" id="event-end-time-1" type="datetime-local" name="event-end-time" value="">
+          </div>
+
+          <div class="event__field-group event__field-group--price">
+            <label class="visually-hidden" for="event-price-1">Price</label>
+            <input class="event__input event__input--price" id="event-price-1" type="text" name="event-price" value="">
+          </div>
+
+          <button class="event__save-btn btn btn--blue" type="submit">Save</button>
+          <button class="event__reset-btn" type="reset">Delete</button>
+          <button class="event__rollup-btn" type="button">
+            <span class="visually-hidden">Close event</span>
+          </button>
+        </header>
+
+        <section class="event__details">
+          <section class="event__section event__section--offers">
+            <h3 class="event__section-title event__section-title--offers">Offers</h3>
+            <div class="event__available-offers"></div>
+          </section>
+          <section class="event__section event__section--destination">
+            <h3 class="event__section-title event__section-title--destination">Destination</h3>
+            <p class="event__destination-description"></p>
+            <div class="event__photos-container">
+              <div class="event__photos-tape"></div>
+            </div>
+          </section>
+        </section>
       </form>
     `;
   }
 
-  getElement() {
-    if (!this._element) {
-      this._element = document.createElement('div');
-      this._element.innerHTML = this.getTemplate();
-      this._element = this._element.firstElementChild;
-    }
-    return this._element;
+  #getTypeRadios() {
+    const eventTypes = [
+      'taxi', 'bus', 'train', 'ship', 'drive', 'flight',
+      'check-in', 'sightseeing', 'restaurant'
+    ];
+    return eventTypes.map(t => `
+      <div class="event__type-item">
+        <input id="event-type-${t}-1" class="event__type-input visually-hidden" type="radio" name="event-type" value="${t}">
+        <label class="event__type-label event__type-label--${t}" for="event-type-${t}-1">${t}</label>
+      </div>
+    `).join('');
   }
 
+  setSubmitHandler(callback) {
+    this._callback.submit = callback;
+    this.element.querySelector('form').addEventListener('submit', this.#submitHandler);
+  }
+
+  #submitHandler = (evt) => {
+    evt.preventDefault();
+    this._callback.submit();
+  };
+
+  setCloseHandler(callback) {
+    this._callback.close = callback;
+    this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
+  }
+
+  #closeClickHandler = (evt) => {
+    evt.preventDefault();
+    this._callback.close();
+  };
+
+  setEscKeydownHandler(callback) {
+    this._callback.escKeydown = callback;
+    document.addEventListener('keydown', this.#escKeydownHandler);
+  }
+
+  #escKeydownHandler = (evt) => {
+    if (evt.key === 'Escape') {
+      evt.preventDefault();
+      this._callback.escKeydown();
+    }
+  };
+
   removeElement() {
-    this._element = null;
+    document.removeEventListener('keydown', this.#escKeydownHandler);
+    super.removeElement();
   }
 }
