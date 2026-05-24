@@ -46,6 +46,22 @@ export default class TripModel {
     }
   }
 
+  getPointsSortedBy(sortType, points = this.#points) {
+    const pointsCopy = [...points];
+    switch (sortType) {
+      case 'time':
+        return pointsCopy.sort((a, b) => {
+          const durationA = new Date(a.endDateTime) - new Date(a.startDateTime);
+          const durationB = new Date(b.endDateTime) - new Date(b.startDateTime);
+          return durationA - durationB;
+        });
+      case 'price':
+        return pointsCopy.sort((a, b) => b.basePrice - a.basePrice);
+      default:
+        return pointsCopy.sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
+    }
+  }
+
   getFilters(points) {
     const now = new Date();
     const filters = [
