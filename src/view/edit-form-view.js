@@ -1,39 +1,37 @@
+import AbstractView from '../framework/abstract-view.js';
 
-export default class EditFormView {
-  constructor(point = null, destination = null, selectedOffers = [], allOffersByType = []) {
-    this._point = point;
-    this._destination = destination;
-    this._selectedOffers = selectedOffers;
-    this._allOffersByType = allOffersByType;
-    this._element = null;
+export default class EditFormView extends AbstractView {
+  #point = null;
+  #destination = null;
+  #selectedOffers = [];
+  #allOffersByType = [];
+
+  constructor(point, destination, selectedOffers, allOffersByType) {
+    super();
+    this.#point = point;
+    this.#destination = destination;
+    this.#selectedOffers = selectedOffers;
+    this.#allOffersByType = allOffersByType;
   }
 
-  getTemplate() {
-    const point = this._point || {};
-    const destination = this._destination || {};
-    const selectedOffers = this._selectedOffers || [];
-    const allOffers = this._allOffersByType || [];
+  get template() {
+    const point = this.#point || {};
+    const destination = this.#destination || {};
+    const selectedOffers = this.#selectedOffers || [];
+    const allOffers = this.#allOffersByType || [];
 
     const {
-      id = '',
       type = 'flight',
       startDateTime = '',
       endDateTime = '',
       basePrice = 0,
-      isFavorite = false,
-      destinationId = '',
-      offersIds = []
     } = point;
 
     const destinationName = destination.name || '';
     const destinationDescription = destination.description || '';
     const destinationPictures = destination.pictures || [];
 
-    const formatDateForInput = (isoString) => {
-      if (!isoString) return '';
-      return isoString.slice(0, 16);
-    };
-
+    const formatDateForInput = (isoString) => isoString ? isoString.slice(0, 16) : '';
     const startDateValue = formatDateForInput(startDateTime);
     const endDateValue = formatDateForInput(endDateTime);
 
@@ -44,8 +42,8 @@ export default class EditFormView {
 
     const typesRadios = eventTypes.map(t => `
       <div class="event__type-item">
-        <input id="event-type-${t}-1" class="event__type-input  visually-hidden" type="radio" name="event-type" value="${t}" ${t === type ? 'checked' : ''}>
-        <label class="event__type-label  event__type-label--${t}" for="event-type-${t}-1">${t}</label>
+        <input id="event-type-${t}-1" class="event__type-input visually-hidden" type="radio" name="event-type" value="${t}" ${t === type ? 'checked' : ''}>
+        <label class="event__type-label event__type-label--${t}" for="event-type-${t}-1">${t}</label>
       </div>
     `).join('');
 
@@ -53,7 +51,7 @@ export default class EditFormView {
       const isChecked = selectedOffers.some(selected => selected.id === offer.id);
       return `
         <div class="event__offer-selector">
-          <input class="event__offer-checkbox  visually-hidden" id="offer-${offer.id}" type="checkbox" name="offer" value="${offer.id}" ${isChecked ? 'checked' : ''}>
+          <input class="event__offer-checkbox visually-hidden" id="offer-${offer.id}" type="checkbox" name="offer" value="${offer.id}" ${isChecked ? 'checked' : ''}>
           <label class="event__offer-label" for="offer-${offer.id}">
             <span class="event__offer-title">${offer.title}</span>
             &plus;&euro;&nbsp;
@@ -63,7 +61,7 @@ export default class EditFormView {
       `;
     }).join('');
 
-    const picturesHtml = destinationPictures.map((pic, idx) => `
+    const picturesHtml = destinationPictures.map(pic => `
       <img class="event__photo" src="${pic.src}" alt="${pic.description}">
     `).join('');
 
@@ -71,11 +69,11 @@ export default class EditFormView {
       <form class="event event--edit" action="#" method="post">
         <header class="event__header">
           <div class="event__type-wrapper">
-            <label class="event__type  event__type-btn" for="event-type-toggle-1">
+            <label class="event__type event__type-btn" for="event-type-toggle-1">
               <span class="visually-hidden">Choose event type</span>
               <img class="event__type-icon" width="17" height="17" src="img/icons/${type}.png" alt="Event type icon">
             </label>
-            <input class="event__type-toggle  visually-hidden" id="event-type-toggle-1" type="checkbox">
+            <input class="event__type-toggle visually-hidden" id="event-type-toggle-1" type="checkbox">
             <div class="event__type-list">
               <fieldset class="event__type-group">
                 <legend class="visually-hidden">Event type</legend>
@@ -84,28 +82,26 @@ export default class EditFormView {
             </div>
           </div>
 
-          <div class="event__field-group  event__field-group--destination">
-            <label class="event__label  event__type-output" for="event-destination-1">${type}</label>
-            <input class="event__input  event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1">
-            <datalist id="destination-list-1">
-              <!-- Здесь можно динамически подставить список городов -->
-            </datalist>
+          <div class="event__field-group event__field-group--destination">
+            <label class="event__label event__type-output" for="event-destination-1">${type}</label>
+            <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1">
+            <datalist id="destination-list-1"></datalist>
           </div>
 
-          <div class="event__field-group  event__field-group--time">
+          <div class="event__field-group event__field-group--time">
             <label class="visually-hidden" for="event-start-time-1">From</label>
-            <input class="event__input  event__input--time" id="event-start-time-1" type="datetime-local" name="event-start-time" value="${startDateValue}">
+            <input class="event__input event__input--time" id="event-start-time-1" type="datetime-local" name="event-start-time" value="${startDateValue}">
             &mdash;
             <label class="visually-hidden" for="event-end-time-1">To</label>
-            <input class="event__input  event__input--time" id="event-end-time-1" type="datetime-local" name="event-end-time" value="${endDateValue}">
+            <input class="event__input event__input--time" id="event-end-time-1" type="datetime-local" name="event-end-time" value="${endDateValue}">
           </div>
 
-          <div class="event__field-group  event__field-group--price">
+          <div class="event__field-group event__field-group--price">
             <label class="visually-hidden" for="event-price-1">Price</label>
-            <input class="event__input  event__input--price" id="event-price-1" type="text" name="event-price" value="${basePrice}">
+            <input class="event__input event__input--price" id="event-price-1" type="text" name="event-price" value="${basePrice}">
           </div>
 
-          <button class="event__save-btn  btn  btn--blue" type="submit">Save</button>
+          <button class="event__save-btn btn btn--blue" type="submit">Save</button>
           <button class="event__reset-btn" type="reset">Delete</button>
           <button class="event__rollup-btn" type="button">
             <span class="visually-hidden">Close event</span>
@@ -113,15 +109,15 @@ export default class EditFormView {
         </header>
 
         <section class="event__details">
-          <section class="event__section  event__section--offers">
-            <h3 class="event__section-title  event__section-title--offers">Offers</h3>
+          <section class="event__section event__section--offers">
+            <h3 class="event__section-title event__section-title--offers">Offers</h3>
             <div class="event__available-offers">
               ${offersCheckboxes || '<p>No offers available</p>'}
             </div>
           </section>
 
-          <section class="event__section  event__section--destination">
-            <h3 class="event__section-title  event__section-title--destination">Destination</h3>
+          <section class="event__section event__section--destination">
+            <h3 class="event__section-title event__section-title--destination">Destination</h3>
             <p class="event__destination-description">${destinationDescription}</p>
             <div class="event__photos-container">
               <div class="event__photos-tape">
@@ -134,16 +130,40 @@ export default class EditFormView {
     `;
   }
 
-  getElement() {
-    if (!this._element) {
-      this._element = document.createElement('li');
-      this._element.className = 'trip-events__item';
-      this._element.innerHTML = this.getTemplate();
-    }
-    return this._element;
+  setSubmitHandler(callback) {
+    this._callback.submit = callback;
+    this.element.querySelector('form').addEventListener('submit', this.#submitHandler);
   }
 
+  #submitHandler = (evt) => {
+    evt.preventDefault();
+    this._callback.submit();
+  };
+
+  setCloseHandler(callback) {
+    this._callback.close = callback;
+    this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
+  }
+
+  #closeClickHandler = (evt) => {
+    evt.preventDefault();
+    this._callback.close();
+  };
+
+  setEscKeydownHandler(callback) {
+    this._callback.escKeydown = callback;
+    document.addEventListener('keydown', this.#escKeydownHandler);
+  }
+
+  #escKeydownHandler = (evt) => {
+    if (evt.key === 'Escape') {
+      evt.preventDefault();
+      this._callback.escKeydown();
+    }
+  };
+
   removeElement() {
-    this._element = null;
+    document.removeEventListener('keydown', this.#escKeydownHandler);
+    super.removeElement();
   }
 }
