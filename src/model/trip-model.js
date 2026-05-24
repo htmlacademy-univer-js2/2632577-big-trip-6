@@ -1,96 +1,105 @@
-import {
-  generateDestinations,
-  generateOffers,
-  generatePoints
-} from '../mock/trip-mock.js';
-
 export default class TripModel {
-  #destinations = null;
-  #offers = null;
-  #points = null;
-
+  #api = null;
+  #destinations = [];
+  #offers = [];
+  #points = [];
   #observers = [];
 
-  constructor() {
-    this.#destinations = generateDestinations();
-    this.#offers = generateOffers();
-    this.#points = generatePoints(this.#destinations, this.#offers);
+  constructor(api) {
+    this.#api = api;
   }
 
-  addObserver(observer) {
-    this.#observers.push(observer);
-  }
-
-  removeObserver(observer) {
-    this.#observers = this.#observers.filter(item => item !== observer);
-  }
-
-  #notifyObservers() {
-    this.#observers.forEach(observer => observer());
-  }
-
-  getDestinations() {
-    return this.#destinations;
-  }
-
-  getOffers() {
-    return this.#offers;
-  }
-
-  getPoints() {
-    return this.#points;
-  }
-
-  getDestinationById(id) {
-    return this.#destinations.find(dest => dest.id === id);
-  }
-
-  getDestinationByName(name) {
-    return this.#destinations.find(dest => dest.name === name);
-  }
-
-  getOffersByIds(ids) {
-    return this.#offers.filter(offer => ids.includes(offer.id));
-  }
-
-  getOffersByType(type) {
-    return this.#offers.filter(offer => offer.type === type);
-  }
-
-  updatePoint(updatedPoint) {
-    const index = this.#points.findIndex(p => p.id === updatedPoint.id);
-    if (index !== -1) {
-      this.#points[index] = { ...this.#points[index], ...updatedPoint };
-      this.#notifyObservers();
+  async init() {
+    try {
+      const [destinations, offers, points] = await Promise.all([
+        this.#api.getDestinations(),
+        this.#api.getOffers(),
+        this.#api.getPoints(),
+      ]);
+      this.#destinations = destinations;
+      this.#offers = offers;
+      this.#points = points;
+    } catch (err) {
+      this.#destinations = [];
+      this.#offers = [];
+      this.#points = [];
+      throw err;
     }
-  }
-
-  addPoint(newPoint) {
-    this.#points.push(newPoint);
     this.#notifyObservers();
   }
 
-  deletePoint(pointId) {
+  getDestinations() { return this.#destinations; }
+  getOffers() { return this.#offers; }
+  getPoints() { return this.#points; }
+
+  getDestinationById(id) {
+    return this.#destinations.find(d => d.id === id);
+  }
+
+  getDestinationByName(name) {
+    return this.#destinations.find(d => d.name === name);
+  }
+
+  getOffersByIds(ids) {
+    const allOffers = this.#offers.flatMap(group => group.offers);
+    return allOffers.filter(offer => ids.includes(offer.id));
+  }
+
+  getOffersByType(type) {
+    const group = this.#offers.find(g => g.type === type);
+    return group ? group.offers : [];
+  }
+
+  async updatePoint(updatedPoint) {
+    const index = this.#points.findIndex(p => p.id === updatedPoint.id);
+    if (index === -1) return;
+    try {
+      const newPoint = await this.#api.updatePoint(updatedPoint);
+      this.#points[index] = newPoint;
+      this.#notifyObservers();
+    } catch (err) {
+      console.error('Update failed', err);
+      throw err;
+    }
+  }
+
+  async addPoint(newPoint) {
+    try {
+      const point = await this.#api.addPoint(newPoint);
+      this.#points.push(point);
+      this.#notifyObservers();
+    } catch (err) {
+      console.error('Add failed', err);
+      throw err;
+    }
+  }
+
+  async deletePoint(pointId) {
     const index = this.#points.findIndex(p => p.id === pointId);
-    if (index !== -1) {
+    if (index === -1) return;
+    try {
+      await this.#api.deletePoint(pointId);
       this.#points.splice(index, 1);
       this.#notifyObservers();
+    } catch (err) {
+      console.error('Delete failed', err);
+      throw err;
     }
   }
 
   getPointsSortedBy(sortType, points = this.#points) {
-    const pointsCopy = [...points];
+    const copy = [...points];
     switch (sortType) {
       case 'time':
-        return pointsCopy.sort((a, b) => {
-          const durationA = new Date(a.endDateTime) - new Date(a.startDateTime);
-          const durationB = new Date(b.endDateTime) - new Date(b.startDateTime);
-          return durationA - durationB;
+        return copy.sort((a, b) => {
+          const durA = new Date(a.dateTo) - new Date(a.dateFrom);
+          const durB = new Date(b.dateTo) - new Date(b.dateFrom);
+          return durA - durB;
         });
       case 'price':
-        return pointsCopy.sort((a, b) => b.basePrice - a.basePrice);
+        return copy.sort((a, b) => b.basePrice - a.basePrice);
       default:
-        return pointsCopy.sort((a, b) => new Date(a.startDateTime) - new Date(b.startDateTime));
+        return copy.sort((a, b) => new Date(a.dateFrom) - new Date(b.dateFrom));
     }
   }
 
@@ -98,15 +107,11 @@ export default class TripModel {
     const now = new Date();
     switch (filterType) {
       case 'future':
-        return points.filter(p => new Date(p.startDateTime) > now);
+        return points.filter(p => new Date(p.dateFrom) > now);
       case 'present':
-        return points.filter(p => {
-          const start = new Date(p.startDateTime);
-          const end = new Date(p.endDateTime);
-          return start <= now && now <= end;
-        });
+        return points.filter(p => new Date(p.dateFrom) <= now && now <= new Date(p.dateTo));
       case 'past':
-        return points.filter(p => new Date(p.endDateTime) < now);
+        return points.filter(p => new Date(p.dateTo) < now);
       default:
         return [...points];
     }
@@ -116,13 +121,13 @@ export default class TripModel {
     const now = new Date();
     return [
       { name: 'everything', title: 'Everything', isChecked: true, isDisabled: false },
-      { name: 'future', title: 'Future', isChecked: false, isDisabled: !points.some(p => new Date(p.startDateTime) > now) },
-      { name: 'present', title: 'Present', isChecked: false, isDisabled: !points.some(p => {
-        const start = new Date(p.startDateTime);
-        const end = new Date(p.endDateTime);
-        return start <= now && now <= end;
-      }) },
-      { name: 'past', title: 'Past', isChecked: false, isDisabled: !points.some(p => new Date(p.endDateTime) < now) }
+      { name: 'future', title: 'Future', isChecked: false, isDisabled: !points.some(p => new Date(p.dateFrom) > now) },
+      { name: 'present', title: 'Present', isChecked: false, isDisabled: !points.some(p => new Date(p.dateFrom) <= now && now <= new Date(p.dateTo)) },
+      { name: 'past', title: 'Past', isChecked: false, isDisabled: !points.some(p => new Date(p.dateTo) < now) }
     ];
   }
+
+  addObserver(observer) { this.#observers.push(observer); }
+  removeObserver(observer) { this.#observers = this.#observers.filter(o => o !== observer); }
+  #notifyObservers() { this.#observers.forEach(o => o()); }
 }
