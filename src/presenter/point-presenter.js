@@ -38,8 +38,8 @@ export default class PointPresenter {
     this.#pointComponent = new PointItemView(this.#point, this.#destination, this.#offers);
     this.#editFormComponent = new EditFormView(
       this.#point, this.#destination, this.#offers, this.#allOffersByType,
-      (name) => this.#handleDestinationChange(name),
-      (type) => this.#onGetOffersByType(type)
+      this.#onGetDestinationByName,
+      this.#onGetOffersByType
     );
 
     this.#pointComponent.setEditClickHandler(() => this.#replacePointToForm());
@@ -80,11 +80,14 @@ export default class PointPresenter {
       destination: state.destination.id,
       offers: state.selectedOffers.map(o => o.id),
     };
+    this.#editFormComponent.setSavingState(true);
     try {
       await this.#onDataChange(updated);
       this.#replaceFormToPoint();
     } catch {
       this.#editFormComponent.shake();
+    } finally {
+      this.#editFormComponent.setSavingState(false);
     }
   };
 
@@ -98,10 +101,12 @@ export default class PointPresenter {
   };
 
   #handleDeleteClick = async () => {
+    this.#editFormComponent.setDeletingState(true);
     try {
       await this.#onDelete(this.#point.id);
     } catch {
       this.#editFormComponent.shake();
+      this.#editFormComponent.setDeletingState(false);
     }
   };
 

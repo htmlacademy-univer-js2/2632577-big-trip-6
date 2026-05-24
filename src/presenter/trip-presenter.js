@@ -41,7 +41,7 @@ export default class TripPresenter {
       await this.#tripModel.init();
       this.#isLoading = false;
       this.#isError = false;
-    } catch {
+    } catch (err) {
       this.#isLoading = false;
       this.#isError = true;
       this.#renderError();
@@ -56,17 +56,19 @@ export default class TripPresenter {
   }
 
   #renderLoading() {
-    const loading = new LoadingView();
-    render(loading, this.#tripEventsContainer);
+    const loadingView = new LoadingView();
+    render(loadingView, this.#tripEventsContainer);
   }
 
   #renderError() {
-    const error = new ErrorLoadView();
-    render(error, this.#tripEventsContainer);
+    const errorView = new ErrorLoadView();
+    render(errorView, this.#tripEventsContainer);
   }
 
   #renderSort() {
-    if (this.#sortComponent) this.#sortComponent.element.remove();
+    if (this.#sortComponent) {
+      this.#sortComponent.element.remove();
+    }
     this.#sortComponent = new SortView(this.#handleSortTypeChange.bind(this));
     this.#tripEventsContainer.prepend(this.#sortComponent.element);
   }
@@ -84,20 +86,23 @@ export default class TripPresenter {
   }
 
   #renderPoints() {
-    const all = this.#tripModel.getPoints();
-    const filtered = this.#tripModel.getPointsFilteredBy(this.#filterModel.getFilter(), all);
-    const sorted = this.#tripModel.getPointsSortedBy(this.#currentSortType, filtered);
+    const allPoints = this.#tripModel.getPoints();
+    const activeFilter = this.#filterModel.getFilter();
+    let filteredPoints = this.#tripModel.getPointsFilteredBy(activeFilter, allPoints);
+    const sortedPoints = this.#tripModel.getPointsSortedBy(this.#currentSortType, filteredPoints);
     this.#clearPointsList();
-    if (sorted.length === 0) {
-      const empty = new EmptyListView(this.#filterModel.getFilter());
-      render(empty, this.#listContainer);
+
+    if (sortedPoints.length === 0) {
+      const emptyView = new EmptyListView(activeFilter);
+      render(emptyView, this.#listContainer);
       return;
     }
-    sorted.forEach(point => {
-      const dest = this.#tripModel.getDestinationById(point.destination);
+
+    sortedPoints.forEach(point => {
+      const destination = this.#tripModel.getDestinationById(point.destination);
       const offers = this.#tripModel.getOffersByIds(point.offers);
       const allOffersByType = this.#tripModel.getOffersByType(point.type);
-      const presenter = new PointPresenter(
+      const pointPresenter = new PointPresenter(
         this.#listContainer,
         this.#handlePointDataChange.bind(this),
         this.#handleModeChange.bind(this),
@@ -105,36 +110,41 @@ export default class TripPresenter {
         this.#tripModel.getDestinationByName.bind(this.#tripModel),
         this.#handlePointDelete.bind(this)
       );
-      presenter.init(point, dest, offers, allOffersByType);
-      this.#pointPresenters.set(point.id, presenter);
+      pointPresenter.init(point, destination, offers, allOffersByType);
+      this.#pointPresenters.set(point.id, pointPresenter);
     });
   }
 
   #clearPointsList() {
-    this.#pointPresenters.forEach(p => p.destroy());
+    this.#pointPresenters.forEach(presenter => presenter.destroy());
     this.#pointPresenters.clear();
     this.#activePointPresenter = null;
-    while (this.#listContainer.firstChild) this.#listContainer.removeChild(this.#listContainer.firstChild);
+    while (this.#listContainer.firstChild) {
+      this.#listContainer.removeChild(this.#listContainer.firstChild);
+    }
   }
 
-  #handlePointDataChange = async (updated) => {
-    await this.#tripModel.updatePoint(updated);
+  #handlePointDataChange = async (updatedPoint) => {
+    await this.#tripModel.updatePoint(updatedPoint);
   };
 
-  #handlePointDelete = async (id) => {
-    await this.#tripModel.deletePoint(id);
+  #handlePointDelete = async (pointId) => {
+    await this.#tripModel.deletePoint(pointId);
   };
 
-  #handleModeChange = (active) => {
-    this.#pointPresenters.forEach(p => { if (p !== active) p.resetView(); });
-    this.#activePointPresenter = active;
+  #handleModeChange = (activePresenter) => {
+    this.#pointPresenters.forEach(presenter => {
+      if (presenter !== activePresenter) {
+        presenter.resetView();
+      }
+    });
+    this.#activePointPresenter = activePresenter;
   };
 
   #renderCreateForm() {
-    this.#createFormComponent = new PointFormView(
-      this.#tripModel.getDestinations(),
-      this.#tripModel.getOffers()
-    );
+    const destinations = this.#tripModel.getDestinations();
+    const allOffers = this.#tripModel.getOffers();
+    this.#createFormComponent = new PointFormView(destinations, allOffers);
     if (this.#newEventButton) {
       this.#newEventButton.insertAdjacentElement('afterend', this.#createFormComponent.element);
       this.#createFormComponent.element.style.display = 'none';
@@ -147,15 +157,26 @@ export default class TripPresenter {
 
   #showCreateForm() {
     if (this.#isCreateFormShown) return;
-    if (this.#activePointPresenter) this.#activePointPresenter.resetView();
+    if (this.#activePointPresenter) {
+      this.#activePointPresenter.resetView();
+    }
     this.#filterModel.setFilter('everything');
     this.#currentSortType = 'day';
     this.#renderSort();
+
     this.#createFormComponent.element.style.display = '';
     this.#isCreateFormShown = true;
+
     this.#createFormComponent.setSubmitHandler(async (newPoint) => {
-      await this.#tripModel.addPoint(newPoint);
-      this.#hideCreateForm();
+      this.#createFormComponent.setSavingState(true);
+      try {
+        await this.#tripModel.addPoint(newPoint);
+        this.#hideCreateForm();
+      } catch (error) {
+        this.#createFormComponent.shake();
+      } finally {
+        this.#createFormComponent.setSavingState(false);
+      }
     });
     this.#createFormComponent.setCloseHandler(() => this.#hideCreateForm());
     this.#createFormComponent.setEscKeydownHandler(() => this.#hideCreateForm());
