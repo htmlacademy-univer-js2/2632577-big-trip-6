@@ -3,6 +3,7 @@ import SortView from '../view/sort-view.js';
 import PointFormView from '../view/point-form-view.js';
 import EditFormView from '../view/edit-form-view.js';
 import PointItemView from '../view/point-item-view.js';
+import EmptyListView from '../view/empty-list-view.js';
 import { render } from '../framework/render.js';
 
 export default class TripPresenter {
@@ -10,11 +11,19 @@ export default class TripPresenter {
   #filtersContainer = null;
   #tripEventsContainer = null;
   #tripMain = null;
-  #listContainer = null;
   #newEventButton = null;
+  #listContainer = null;
 
-  #pointComponents = new Map();
-  #activeEditForm = null;
+  #filterComponent = null;
+  #sortComponent = null;
+  #emptyListComponent = null;
+
+  #pointComponents = new Map(); 
+  #activeEditForm = null; 
+  #activeEditFormPointId = null;
+
+  #createFormComponent = null;
+  #isCreateFormShown = false;
 
   constructor(model) {
     this.#model = model;
@@ -25,40 +34,53 @@ export default class TripPresenter {
   }
 
   init() {
-    const filterView = new FilterView();
-    render(filterView, this.#filtersContainer);
+    this.#renderFilters();
 
-    const sortView = new SortView();
-    this.#tripEventsContainer.prepend(sortView.element);
+    this.#renderSort();
 
     this.#listContainer = document.createElement('ul');
     this.#listContainer.className = 'trip-events__list';
     this.#tripEventsContainer.appendChild(this.#listContainer);
 
-    this.#renderAllPoints();
+    this.#renderPointsList();
 
-    const pointFormView = new PointFormView();
+    this.#createFormComponent = new PointFormView();
     if (this.#newEventButton) {
-      this.#newEventButton.insertAdjacentElement('afterend', pointFormView.element);
-      pointFormView.element.style.display = 'none'; 
+      this.#newEventButton.insertAdjacentElement('afterend', this.#createFormComponent.element);
+      this.#createFormComponent.element.style.display = 'none';
     } else {
-      render(pointFormView, this.#tripMain);
-      pointFormView.element.style.display = 'none';
+      render(this.#createFormComponent, this.#tripMain);
+      this.#createFormComponent.element.style.display = 'none';
     }
 
     this.#newEventButton?.addEventListener('click', () => {
-      if (this.#activeEditForm) {
-        this.#closeEditForm(this.#activeEditForm);
-      }
-      pointFormView.element.style.display = '';
-      pointFormView.setSubmitHandler(() => this.#onCreateFormSubmit(pointFormView));
-      pointFormView.setCloseHandler(() => this.#onCreateFormClose(pointFormView));
-      pointFormView.setEscKeydownHandler(() => this.#onCreateFormClose(pointFormView));
+      this.#showCreateForm();
     });
   }
 
-  #renderAllPoints() {
+  #renderFilters() {
     const points = this.#model.getPoints();
+    const filters = this.#model.getFilters(points);
+    this.#filterComponent = new FilterView(filters);
+    render(this.#filterComponent, this.#filtersContainer);
+  }
+
+  #renderSort() {
+    this.#sortComponent = new SortView();
+    this.#tripEventsContainer.prepend(this.#sortComponent.element);
+  }
+
+  #renderPointsList() {
+    const points = this.#model.getPoints();
+    this.#clearPointsList();
+
+    if (points.length === 0) {
+      const currentFilter = this.#getCurrentFilter();
+      this.#emptyListComponent = new EmptyListView(currentFilter);
+      render(this.#emptyListComponent, this.#listContainer);
+      return;
+    }
+
     points.forEach(point => {
       this.#renderPoint(point);
     });
@@ -82,9 +104,20 @@ export default class TripPresenter {
     });
   }
 
+  #clearPointsList() {
+    while (this.#listContainer.firstChild) {
+      this.#listContainer.removeChild(this.#listContainer.firstChild);
+    }
+    this.#pointComponents.clear();
+    if (this.#emptyListComponent) {
+      this.#emptyListComponent.removeElement();
+      this.#emptyListComponent = null;
+    }
+  }
+
   #openEditForm(pointView, point, destination, offers) {
     if (this.#activeEditForm) {
-      this.#closeEditForm(this.#activeEditForm);
+      this.#closeEditForm(false);
     }
 
     const allOffersByType = this.#model.getOffersByType(point.type);
@@ -94,51 +127,64 @@ export default class TripPresenter {
       this.#onEditFormSubmit(editForm, point, pointView);
     });
     editForm.setCloseHandler(() => {
-      this.#closeEditForm(editForm);
+      this.#closeEditForm(false);
     });
     editForm.setEscKeydownHandler(() => {
-      this.#closeEditForm(editForm);
+      this.#closeEditForm(false);
     });
 
     pointView.element.replaceWith(editForm.element);
     this.#activeEditForm = editForm;
+    this.#activeEditFormPointId = point.id;
   }
 
   #onEditFormSubmit(editForm, oldPoint, oldPointView) {
-    this.#closeEditForm(editForm);
-    this.#replaceFormWithPoint(editForm, oldPointView);
+    this.#closeEditForm(false);
   }
 
-  #closeEditForm(editForm) {
-    if (!editForm) return;
-    let relatedPointView = null;
-    let relatedPoint = null;
-    for (const [id, { pointView, point }] of this.#pointComponents.entries()) {
-      if (point.id === editForm._point?.id) { 
-        relatedPointView = pointView;
-        relatedPoint = point;
-        break;
-      }
+  #closeEditForm(saveChanges = false) {
+    if (!this.#activeEditForm) return;
+
+    const pointId = this.#activeEditFormPointId;
+    const entry = this.#pointComponents.get(pointId);
+    if (entry) {
+      const { pointView } = entry;
+      this.#activeEditForm.element.replaceWith(pointView.element);
     }
-    if (relatedPointView) {
-      this.#replaceFormWithPoint(editForm, relatedPointView);
-    } else {
-      editForm.element.remove();
-      editForm.removeElement();
-    }
+    this.#activeEditForm.removeElement();
     this.#activeEditForm = null;
+    this.#activeEditFormPointId = null;
   }
 
-  #replaceFormWithPoint(editForm, pointView) {
-    editForm.element.replaceWith(pointView.element);
-    editForm.removeElement(); 
+  #showCreateForm() {
+    if (this.#activeEditForm) {
+      this.#closeEditForm(false);
+    }
+    this.#createFormComponent.element.style.display = '';
+    this.#isCreateFormShown = true;
+
+    this.#createFormComponent.setSubmitHandler(() => {
+      this.#onCreateFormSubmit();
+    });
+    this.#createFormComponent.setCloseHandler(() => {
+      this.#hideCreateForm();
+    });
+    this.#createFormComponent.setEscKeydownHandler(() => {
+      this.#hideCreateForm();
+    });
   }
 
-  #onCreateFormSubmit(formView) {
-    this.#onCreateFormClose(formView);
+  #hideCreateForm() {
+    this.#createFormComponent.element.style.display = 'none';
+    this.#isCreateFormShown = false;
   }
 
-  #onCreateFormClose(formView) {
-    formView.element.style.display = 'none';
+  #onCreateFormSubmit() {
+    this.#hideCreateForm();
+    this.#renderPointsList();
+  }
+
+  #getCurrentFilter() {
+    return 'everything';
   }
 }
