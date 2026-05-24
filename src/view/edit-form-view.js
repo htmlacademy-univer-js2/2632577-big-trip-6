@@ -1,35 +1,44 @@
-import AbstractView from '../framework/abstract-view.js';
+import AbstractStatefulView from '../framework/abstract-stateful-view.js';
 
-export default class EditFormView extends AbstractView {
-  #point = null;
-  #destination = null;
-  #selectedOffers = [];
-  #allOffersByType = [];
+export default class EditFormView extends AbstractStatefulView {
+  #callbacks = {
+    submit: null,
+    close: null,
+    esc: null,
+  };
 
   constructor(point, destination, selectedOffers, allOffersByType) {
     super();
-    this.#point = point;
-    this.#destination = destination;
-    this.#selectedOffers = selectedOffers;
-    this.#allOffersByType = allOffersByType;
+    this._setState(EditFormView.parseStateToRaw(point, destination, selectedOffers, allOffersByType));
+    this._restoreHandlers();
   }
-  get point() {
-    return this.#point;
+
+  static parseStateToRaw(point, destination, selectedOffers, allOffersByType) {
+    return {
+      point: point || {
+        id: null,
+        type: 'flight',
+        startDateTime: '',
+        endDateTime: '',
+        basePrice: 0,
+        isFavorite: false,
+        destinationId: null,
+        offersIds: []
+      },
+      destination: destination || {
+        id: null,
+        name: '',
+        description: '',
+        pictures: []
+      },
+      selectedOffers: selectedOffers || [],
+      allOffersByType: allOffersByType || []
+    };
   }
 
   get template() {
-    const point = this.#point || {};
-    const destination = this.#destination || {};
-    const selectedOffers = this.#selectedOffers || [];
-    const allOffers = this.#allOffersByType || [];
-
-    const {
-      type = 'flight',
-      startDateTime = '',
-      endDateTime = '',
-      basePrice = 0,
-    } = point;
-
+    const { point, destination, selectedOffers, allOffersByType } = this._state;
+    const { type, startDateTime, endDateTime, basePrice } = point;
     const destinationName = destination.name || '';
     const destinationDescription = destination.description || '';
     const destinationPictures = destination.pictures || [];
@@ -50,7 +59,7 @@ export default class EditFormView extends AbstractView {
       </div>
     `).join('');
 
-    const offersCheckboxes = allOffers.map(offer => {
+    const offersCheckboxes = allOffersByType.map(offer => {
       const isChecked = selectedOffers.some(selected => selected.id === offer.id);
       return `
         <div class="event__offer-selector">
@@ -87,8 +96,10 @@ export default class EditFormView extends AbstractView {
 
           <div class="event__field-group event__field-group--destination">
             <label class="event__label event__type-output" for="event-destination-1">${type}</label>
-            <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1">
-            <datalist id="destination-list-1"></datalist>
+            <input class="event__input event__input--destination" id="event-destination-1" type="text" name="event-destination" value="${destinationName}" list="destination-list-1" autocomplete="off">
+            <datalist id="destination-list-1">
+              <!-- здесь можно динамически подставить города из модели, но для простоты оставляем пустым -->
+            </datalist>
           </div>
 
           <div class="event__field-group event__field-group--time">
@@ -101,7 +112,7 @@ export default class EditFormView extends AbstractView {
 
           <div class="event__field-group event__field-group--price">
             <label class="visually-hidden" for="event-price-1">Price</label>
-            <input class="event__input event__input--price" id="event-price-1" type="text" name="event-price" value="${basePrice}">
+            <input class="event__input event__input--price" id="event-price-1" type="number" name="event-price" value="${basePrice}">
           </div>
 
           <button class="event__save-btn btn btn--blue" type="submit">Save</button>
@@ -132,39 +143,90 @@ export default class EditFormView extends AbstractView {
       </form>
     `;
   }
-  
 
   setSubmitHandler(callback) {
-    this._callback.submit = callback;
+    this.#callbacks.submit = callback;
     this.element.querySelector('form').addEventListener('submit', this.#submitHandler);
+  }
+
+  setCloseHandler(callback) {
+    this.#callbacks.close = callback;
+    this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
+  }
+
+  setEscKeydownHandler(callback) {
+    this.#callbacks.esc = callback;
+    document.addEventListener('keydown', this.#escKeydownHandler);
   }
 
   #submitHandler = (evt) => {
     evt.preventDefault();
-    this._callback.submit();
+    this.#callbacks.submit?.();
   };
-
-  setCloseHandler(callback) {
-    this._callback.close = callback;
-    this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
-  }
 
   #closeClickHandler = (evt) => {
     evt.preventDefault();
-    this._callback.close();
+    this.#callbacks.close?.();
   };
-
-  setEscKeydownHandler(callback) {
-    this._callback.escKeydown = callback;
-    document.addEventListener('keydown', this.#escKeydownHandler);
-  }
 
   #escKeydownHandler = (evt) => {
     if (evt.key === 'Escape') {
       evt.preventDefault();
-      this._callback.escKeydown();
+      this.#callbacks.esc?.();
     }
   };
+
+  #handleTypeChange = (evt) => {
+    const newType = evt.target.value;
+    if (newType === this._state.point.type) return;
+
+    const newSelectedOffers = [];
+    this.updateElement({
+      point: { ...this._state.point, type: newType, offersIds: [] },
+      selectedOffers: newSelectedOffers
+    });
+  };
+
+  #handleDestinationChange = (evt) => {
+    const newDestinationName = evt.target.value;
+    if (this.#callbacks.destinationChange) {
+      this.#callbacks.destinationChange(newDestinationName);
+    }
+  };
+
+  #handleOfferChange = (evt) => {
+    const offerId = evt.target.value;
+    const isChecked = evt.target.checked;
+    let newSelectedOffers = [...this._state.selectedOffers];
+    if (isChecked) {
+      const offer = this._state.allOffersByType.find(o => o.id === offerId);
+      if (offer) newSelectedOffers.push(offer);
+    } else {
+      newSelectedOffers = newSelectedOffers.filter(o => o.id !== offerId);
+    }
+    this.updateElement({ selectedOffers: newSelectedOffers });
+  };
+
+  _restoreHandlers() {
+    this.element.querySelector('form').addEventListener('submit', this.#submitHandler);
+    this.element.querySelector('.event__rollup-btn').addEventListener('click', this.#closeClickHandler);
+    document.addEventListener('keydown', this.#escKeydownHandler);
+
+    const typeRadios = this.element.querySelectorAll('.event__type-input');
+    typeRadios.forEach(radio => {
+      radio.addEventListener('change', this.#handleTypeChange);
+    });
+
+    const destinationInput = this.element.querySelector('.event__input--destination');
+    if (destinationInput) {
+      destinationInput.addEventListener('change', this.#handleDestinationChange);
+    }
+
+    const offerCheckboxes = this.element.querySelectorAll('.event__offer-checkbox');
+    offerCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', this.#handleOfferChange);
+    });
+  }
 
   removeElement() {
     document.removeEventListener('keydown', this.#escKeydownHandler);
