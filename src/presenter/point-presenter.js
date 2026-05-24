@@ -13,13 +13,17 @@ export default class PointPresenter {
 
   #onDataChange = null;
   #onModeChange = null;
+  #onGetOffersByType = null;
+  #onGetDestinationByName = null;
 
   #isEditMode = false;
 
-  constructor(container, onDataChange, onModeChange) {
+  constructor(container, onDataChange, onModeChange, onGetOffersByType, onGetDestinationByName) {
     this.#parentContainer = container;
     this.#onDataChange = onDataChange;
     this.#onModeChange = onModeChange;
+    this.#onGetOffersByType = onGetOffersByType;
+    this.#onGetDestinationByName = onGetDestinationByName;
   }
 
   init(point, destination, offers, allOffersByType) {
@@ -36,13 +40,15 @@ export default class PointPresenter {
       this.#point,
       this.#destination,
       this.#offers,
-      this.#allOffersByType
+      this.#allOffersByType,
+      (newDestinationName) => this.#handleDestinationChange(newDestinationName),
+      (newType) => this.#onGetOffersByType(newType)
     );
 
     this.#pointComponent.setEditClickHandler(() => this.#replacePointToForm());
     this.#pointComponent.setFavoriteClickHandler(() => this.#handleFavoriteClick());
 
-    this.#editFormComponent.setSubmitHandler(() => this.#replaceFormToPoint());
+    this.#editFormComponent.setSubmitHandler(() => this.#replaceFormToPointAndSave());
     this.#editFormComponent.setCloseHandler(() => this.#replaceFormToPoint());
     this.#editFormComponent.setEscKeydownHandler(() => this.#replaceFormToPoint());
 
@@ -74,12 +80,32 @@ export default class PointPresenter {
     this.#isEditMode = false;
   }
 
+  #replaceFormToPointAndSave() {
+    if (!this.#isEditMode) return;
+    const formState = this.#editFormComponent.getState();
+    const updatedPoint = {
+      ...formState.point,
+      destinationId: formState.destination.id,
+      offersIds: formState.selectedOffers.map(offer => offer.id),
+    };
+    this.#onDataChange(updatedPoint);
+    this.#replaceFormToPoint();
+  }
+
   #handleFavoriteClick() {
     const updatedPoint = {
       ...this.#point,
       isFavorite: !this.#point.isFavorite
     };
     this.#onDataChange(updatedPoint);
+  }
+
+  #handleDestinationChange(newDestinationName) {
+    const newDestination = this.#onGetDestinationByName(newDestinationName);
+    if (newDestination) {
+      this.#editFormComponent.updateElement({ destination: newDestination });
+      this.#destination = newDestination;
+    }
   }
 
   resetView() {

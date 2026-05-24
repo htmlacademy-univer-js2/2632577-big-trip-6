@@ -1,4 +1,8 @@
 import AbstractView from '../framework/abstract-view.js';
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration.js';
+
+dayjs.extend(duration);
 
 export default class PointItemView extends AbstractView {
   #point = null;
@@ -14,18 +18,18 @@ export default class PointItemView extends AbstractView {
 
   get template() {
     const { type, startDateTime, endDateTime, basePrice, isFavorite } = this.#point;
-    const startDate = new Date(startDateTime);
-    const endDate = new Date(endDateTime);
-    const formattedDate = startDate.toLocaleString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
-    const startTime = startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const endTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const duration = Math.round((endDate - startDate) / (1000 * 60));
-    const durationStr = duration >= 60 ? `${Math.floor(duration / 60)}H ${duration % 60}M` : `${duration}M`;
+    const start = dayjs(startDateTime);
+    const end = dayjs(endDateTime);
+    const formattedDate = start.format('MMM D'); 
+    const startTime = start.format('HH:mm');
+    const endTime = end.format('HH:mm');
+    const diff = dayjs.duration(end.diff(start));
+    const durationStr = this.#formatDuration(diff);
     const favoriteClass = isFavorite ? 'event__favorite-btn--active' : '';
 
     return `
       <div class="event">
-        <time class="event__date" datetime="${startDate.toISOString().slice(0, 10)}">${formattedDate}</time>
+        <time class="event__date" datetime="${start.format('YYYY-MM-DD')}">${formattedDate.toUpperCase()}</time>
         <div class="event__type">
           <img class="event__type-icon" width="42" height="42" src="img/icons/${type}.png" alt="Event type icon">
         </div>
@@ -60,6 +64,20 @@ export default class PointItemView extends AbstractView {
         </button>
       </div>
     `;
+  }
+
+  #formatDuration(diff) {
+    const days = diff.days();
+    const hours = diff.hours();
+    const minutes = diff.minutes();
+
+    if (days > 0) {
+      return `${days}D ${hours}H ${minutes}M`;
+    } else if (hours > 0) {
+      return `${hours}H ${minutes}M`;
+    } else {
+      return `${minutes}M`;
+    }
   }
 
   setEditClickHandler(callback) {
