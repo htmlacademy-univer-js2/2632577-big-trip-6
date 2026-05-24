@@ -63,7 +63,7 @@ export default class PointPresenter {
 
   #replacePointToForm() {
     if (this.#isEditMode) return;
-    this.#onModeChange();
+    this.#onModeChange(this);
     replace(this.#editFormComponent, this.#pointComponent);
     this.#isEditMode = true;
   }
