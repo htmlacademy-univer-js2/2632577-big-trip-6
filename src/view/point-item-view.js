@@ -1,4 +1,4 @@
-import AbstractView from '../framework/abstract-view.js';
+import AbstractView from '../framework/view/abstract-view.js';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration.js';
 dayjs.extend(duration);
@@ -27,8 +27,12 @@ export default class PointItemView extends AbstractView {
     const hours = diff.hours();
     const minutes = diff.minutes();
     let durationStr = '';
-    if (days) durationStr += `${days}D `;
-    if (hours || days) durationStr += `${hours}H `;
+    if (days) {
+      durationStr += `${days}D `;
+    }
+    if (hours || days) {
+      durationStr += `${hours}H `;
+    }
     durationStr += `${minutes}M`;
     const favClass = isFavorite ? 'event__favorite-btn--active' : '';
 
@@ -50,7 +54,7 @@ export default class PointItemView extends AbstractView {
         <p class="event__price">&euro;&nbsp;<span class="event__price-value">${basePrice}</span></p>
         <h4 class="visually-hidden">Offers:</h4>
         <ul class="event__selected-offers">
-          ${this.#offers.map(o => `<li class="event__offer"><span class="event__offer-title">${o.title}</span>&plus;&euro;&nbsp;<span class="event__offer-price">${o.price}</span></li>`).join('')}
+          ${this.#offers.map((o) => `<li class="event__offer"><span class="event__offer-title">${o.title}</span>&plus;&euro;&nbsp;<span class="event__offer-price">${o.price}</span></li>`).join('')}
         </ul>
         <button class="event__favorite-btn ${favClass}" type="button">...</button>
         <button class="event__rollup-btn" type="button">...</button>
@@ -65,6 +69,7 @@ export default class PointItemView extends AbstractView {
       cb();
     });
   }
+
   setFavoriteClickHandler(cb) {
     this._callback.fav = cb;
     this.element.querySelector('.event__favorite-btn').addEventListener('click', (evt) => {

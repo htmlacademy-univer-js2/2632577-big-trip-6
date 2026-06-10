@@ -1,4 +1,4 @@
-import AbstractView from '../framework/abstract-view.js';
+import AbstractView from '../framework/view/abstract-view.js';
 
 export default class EmptyListView extends AbstractView {
   #filter = 'everything';

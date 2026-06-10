@@ -1,5 +1,4 @@
-const AUTHORIZATION = 'Basic bigtrip2025superkey';
-const END_POINT = 'https://21.objects.pages.academy/big-trip';
+
 
 export default class ApiService {
   #endPoint = null;
@@ -34,7 +33,9 @@ export default class ApiService {
       'offers': point.offers,
       'type': point.type,
     };
-    if (point.id) adaptedPoint.id = point.id;
+    if (point.id) {
+      adaptedPoint.id = point.id;
+    }
     return adaptedPoint;
   }
 
@@ -48,7 +49,9 @@ export default class ApiService {
       },
       body: body ? JSON.stringify(body) : null,
     });
-    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
     return response;
   }
 

@@ -1,10 +1,13 @@
-import ApiService from './src/api-service.js';
-import TripModel from './src/model/trip-model.js';
-import FilterModel from './src/model/filter-model.js';
-import TripPresenter from './src/presenter/trip-presenter.js';
-import FilterPresenter from './src/presenter/filter-presenter.js';
+import ApiService from './api-service.js';
+import TripModel from './model/trip-model.js';
+import FilterModel from './model/filter-model.js';
+import TripPresenter from './presenter/trip-presenter.js';
+import FilterPresenter from './presenter/filter-presenter.js';
 
-const api = new ApiService('https://21.objects.pages.academy/big-trip', 'Basic yourRandomSecretKey');
+const END_POINT = 'https://21.objects.pages.academy/big-trip';
+const AUTHORIZATION = 'Basic bigtrip2025superkey';
+const api = new ApiService(END_POINT, AUTHORIZATION);
+
 const tripModel = new TripModel(api);
 const filterModel = new FilterModel();
 

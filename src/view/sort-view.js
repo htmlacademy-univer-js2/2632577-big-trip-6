@@ -1,4 +1,4 @@
-import AbstractView from '../framework/abstract-view.js';
+import AbstractView from '../framework/view/abstract-view.js';
 
 export default class SortView extends AbstractView {
   #current = 'day';
@@ -38,8 +38,10 @@ export default class SortView extends AbstractView {
 
   setSortTypeChangeHandler(callback) {
     this.#onChange = callback;
-    this.element.querySelectorAll('.trip-sort__input').forEach(input => {
-      if (!input.disabled) input.addEventListener('change', this.#changeHandler);
+    this.element.querySelectorAll('.trip-sort__input').forEach((input) => {
+      if (!input.disabled) {
+        input.addEventListener('change', this.#changeHandler);
+      }
     });
   }
 
