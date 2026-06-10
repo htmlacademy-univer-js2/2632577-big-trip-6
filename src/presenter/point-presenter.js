@@ -32,14 +32,14 @@ export default class PointPresenter {
     this.#offers = offers;
     this.#allOffersByType = allOffersByType;
 
-    const prevPoint = this.#pointComponent;
-    const prevForm = this.#editFormComponent;
+    const prevPointComponent = this.#pointComponent;
+    const prevEditFormComponent = this.#editFormComponent;
 
     this.#pointComponent = new PointItemView(this.#point, this.#destination, this.#offers);
     this.#editFormComponent = new EditFormView(
       this.#point, this.#destination, this.#offers, this.#allOffersByType,
-      this.#onGetDestinationByName,
-      this.#onGetOffersByType
+      (name) => this.#handleDestinationChange(name),
+      (type) => this.#onGetOffersByType(type)
     );
 
     this.#pointComponent.setEditClickHandler(() => this.#replacePointToForm());
@@ -49,40 +49,51 @@ export default class PointPresenter {
     this.#editFormComponent.setEscKeydownHandler(() => this.#replaceFormToPoint());
     this.#editFormComponent.setDeleteHandler(() => this.#handleDeleteClick());
 
-    if (!prevPoint || !prevForm) {
+    if (!prevPointComponent || !prevEditFormComponent) {
       render(this.#pointComponent, this.#parentContainer);
       return;
     }
-    if (this.#isEditMode) replace(this.#editFormComponent, prevForm);
-    else replace(this.#pointComponent, prevPoint);
-    prevPoint.removeElement();
-    prevForm.removeElement();
+
+    if (this.#isEditMode) {
+      replace(this.#editFormComponent, prevEditFormComponent);
+    } else {
+      replace(this.#pointComponent, prevPointComponent);
+    }
+
+    prevPointComponent.removeElement();
+    prevEditFormComponent.removeElement();
   }
 
   #replacePointToForm() {
-    if (this.#isEditMode) return;
+    if (this.#isEditMode) {
+      return;
+    }
     this.#onModeChange(this);
     replace(this.#editFormComponent, this.#pointComponent);
     this.#isEditMode = true;
   }
 
   #replaceFormToPoint() {
-    if (!this.#isEditMode) return;
+    if (!this.#isEditMode) {
+      return;
+    }
     replace(this.#pointComponent, this.#editFormComponent);
     this.#isEditMode = false;
   }
 
   #replaceFormToPointAndSave = async () => {
-    if (!this.#isEditMode) return;
+    if (!this.#isEditMode) {
+      return;
+    }
     const state = this.#editFormComponent.getState();
-    const updated = {
+    const updatedPoint = {
       ...state.point,
       destination: state.destination.id,
-      offers: state.selectedOffers.map(o => o.id),
+      offers: state.selectedOffers.map((offer) => offer.id),
     };
     this.#editFormComponent.setSavingState(true);
     try {
-      await this.#onDataChange(updated);
+      await this.#onDataChange(updatedPoint);
       this.#replaceFormToPoint();
     } catch {
       this.#editFormComponent.shake();
@@ -92,9 +103,9 @@ export default class PointPresenter {
   };
 
   #handleFavoriteClick = async () => {
-    const updated = { ...this.#point, isFavorite: !this.#point.isFavorite };
+    const updatedPoint = { ...this.#point, isFavorite: !this.#point.isFavorite };
     try {
-      await this.#onDataChange(updated);
+      await this.#onDataChange(updatedPoint);
     } catch {
       this.#pointComponent.shake();
     }
@@ -110,17 +121,26 @@ export default class PointPresenter {
     }
   };
 
-  #handleDestinationChange(name) {
-    const newDest = this.#onGetDestinationByName(name);
-    if (newDest) {
-      this.#editFormComponent.updateElement({ destination: newDest });
-      this.#destination = newDest;
+  #handleDestinationChange(destinationName) {
+    const newDestination = this.#onGetDestinationByName(destinationName);
+    if (newDestination) {
+      this.#editFormComponent.updateElement({ destination: newDestination });
+      this.#destination = newDestination;
     }
   }
 
-  resetView() { if (this.#isEditMode) this.#replaceFormToPoint(); }
+  resetView() {
+    if (this.#isEditMode) {
+      this.#replaceFormToPoint();
+    }
+  }
+
   destroy() {
-    this.#pointComponent?.removeElement();
-    this.#editFormComponent?.removeElement();
+    if (this.#pointComponent) {
+      this.#pointComponent.removeElement();
+    }
+    if (this.#editFormComponent) {
+      this.#editFormComponent.removeElement();
+    }
   }
 }
