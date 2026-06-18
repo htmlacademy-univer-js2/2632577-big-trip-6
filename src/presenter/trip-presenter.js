@@ -1,220 +1,243 @@
 import SortView from '../view/sort-view.js';
-import PointFormView from '../view/point-form-view.js';
 import EmptyListView from '../view/empty-list-view.js';
 import LoadingView from '../view/loading-view.js';
-import ErrorLoadView from '../view/error-load-view.js';
-import TripInfoView from '../view/trip-info-view.js';
 import PointPresenter from './point-presenter.js';
-import { render } from '../framework/render.js';
+import { render, RenderPosition } from '../framework/render.js';
 
 export default class TripPresenter {
-  #tripModel = null;
-  #filterModel = null;
-  #filtersContainer = null;
-  #tripEventsContainer = null;
-  #tripMain = null;
-  #newEventButton = null;
-  #listContainer = null;
-  #sortComponent = null;
-  #pointPresenters = new Map();
-  #activePointPresenter = null;
-  #createFormComponent = null;
-  #isCreateFormShown = false;
-  #currentSortType = 'day';
-  #isLoading = true;
-  #isError = false;
-  #tripInfoComponent = null;
+  constructor(container, tripModel) {
+    this.container = container;
+    this.tripModel = tripModel;
+    this.sortComponent = null;
+    this.emptyListComponent = null;
+    this.loadingComponent = null;
+    this.pointPresenters = [];
+    this.currentSortType = 'day';
+    this.isNewPointMode = false;
 
-  constructor(tripModel, filterModel) {
-    this.#tripModel = tripModel;
-    this.#filterModel = filterModel;
-    this.#filtersContainer = document.querySelector('.trip-controls__filters');
-    this.#tripEventsContainer = document.querySelector('.trip-events');
-    this.#tripMain = document.querySelector('.trip-main');
-    this.#newEventButton = this.#tripMain?.querySelector('.trip-main__event-add-btn');
+    this.tripModel.addObserver(() => this.renderTripEvents());
+  }
 
-    this.#tripModel.addObserver(() => {
-      this.#renderPoints();
-      this.#updateTripInfo();
+  init() {
+    this.renderTripEvents();
+    this.initNewEventButton();
+  }
+
+  initNewEventButton() {
+    const button = document.querySelector('.trip-main__event-add-btn');
+    if (button) {
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+
+      newButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.createNewPoint();
+      });
+    }
+  }
+
+  createNewPoint() {
+    if (this.isNewPointMode) {
+      return;
+    }
+
+    this.handleModeChange();
+    this.tripModel.setFilter('everything');
+    this.currentSortType = 'day';
+    this.tripModel.setSort('day');
+
+    const destinations = this.tripModel.getDestinations();
+    if (destinations.length === 0) {
+      return;
+    }
+
+    const firstDestination = destinations[0];
+
+    const newWaypoint = {
+      id: null,
+      type: 'flight',
+      destinationId: firstDestination.id,
+      dateFrom: new Date().toISOString(),
+      dateTo: new Date(Date.now() + 3600000).toISOString(),
+      basePrice: 100,
+      optionsIds: [],
+      isFavorite: false,
+    };
+
+    const newDestination = this.tripModel.getDestinationById(newWaypoint.destinationId);
+    const offers = [];
+    const allOffers = this.tripModel.getAllOffers();
+    const allDestinations = this.tripModel.getDestinations();
+
+    const pointsContainer = document.querySelector('.trip-events');
+    if (!pointsContainer) {
+      return;
+    }
+
+    const emptyMessage = pointsContainer.querySelector('.trip-events__msg');
+    if (emptyMessage) {
+      emptyMessage.remove();
+    }
+
+    const pointPresenter = new PointPresenter(
+      pointsContainer,
+      async (updatedWaypoint, action) => {
+        let result;
+        if (action === 'create') {
+          result = await this.tripModel.createWaypoint(updatedWaypoint);
+          if (result.success) {
+            this.isNewPointMode = false;
+            this.renderTripEvents();
+          }
+        } else {
+          result = await this.tripModel.updateWaypoint(updatedWaypoint);
+        }
+        return result;
+      },
+      () => this.handleModeChange(),
+      async (deletedWaypoint) => {
+        const result = await this.tripModel.deleteWaypoint(deletedWaypoint.id);
+        if (result.success) {
+          this.isNewPointMode = false;
+          this.renderTripEvents();
+        }
+        return result;
+      },
+      allOffers,
+      allDestinations,
+    );
+
+    pointPresenter.setCallbacks(
+      (id) => this.tripModel.getDestinationById(id),
+      (id) => this.tripModel.getOffersForWaypoint(id),
+    );
+
+    pointPresenter.init(newWaypoint, newDestination, offers);
+    pointPresenter.openEditForm();
+
+    this.pointPresenters.push(pointPresenter);
+    this.isNewPointMode = true;
+
+    setTimeout(() => {
+      const newForm = document.querySelector('.event--edit');
+      if (newForm) {
+        newForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  }
+
+  renderSort() {
+    this.sortComponent = new SortView(this.currentSortType, (sortType) => {
+      if (this.currentSortType === sortType) {
+        return;
+      }
+      this.currentSortType = sortType;
+      this.tripModel.setSort(sortType);
     });
-    this.#filterModel.addObserver(() => this.#handleFilterChange());
-  }
 
-  async init() {
-    this.#renderLoading();
-    try {
-      await this.#tripModel.init();
-      this.#isLoading = false;
-      this.#isError = false;
-    } catch {
-      this.#isLoading = false;
-      this.#isError = true;
-      this.#renderError();
-      return;
+    const sortContainer = document.querySelector('.trip-events');
+    if (sortContainer) {
+      const oldSort = sortContainer.querySelector('.trip-events__sort');
+      if (oldSort) {
+        oldSort.remove();
+      }
+      render(this.sortComponent, sortContainer, RenderPosition.AFTERBEGIN);
+      this.sortComponent.setSortChangeHandler();
     }
-    this.#renderTripInfo();
-    this.#renderSort();
-    this.#listContainer = document.createElement('ul');
-    this.#listContainer.className = 'trip-events__list';
-    this.#tripEventsContainer.appendChild(this.#listContainer);
-    this.#renderPoints();
-    this.#renderCreateForm();
   }
 
-  #renderLoading() {
-    const loadingView = new LoadingView();
-    render(loadingView, this.#tripEventsContainer);
-  }
-
-  #renderError() {
-    const errorView = new ErrorLoadView();
-    render(errorView, this.#tripEventsContainer);
-  }
-
-  #renderTripInfo() {
-    const route = this.#tripModel.getTripRoute();
-    const dates = this.#tripModel.getTripDates();
-    const total = this.#tripModel.getTotalPrice();
-    if (this.#tripInfoComponent) {
-      this.#tripInfoComponent.element.remove();
-    }
-    this.#tripInfoComponent = new TripInfoView(route, dates, total);
-    render(this.#tripInfoComponent, this.#tripMain, 'afterbegin');
-  }
-
-  #updateTripInfo() {
-    if (!this.#tripInfoComponent) {
-      return;
-    }
-    const route = this.#tripModel.getTripRoute();
-    const dates = this.#tripModel.getTripDates();
-    const total = this.#tripModel.getTotalPrice();
-    this.#tripInfoComponent.element.replaceWith(new TripInfoView(route, dates, total).element);
-  }
-
-  #renderSort() {
-    if (this.#sortComponent) {
-      this.#sortComponent.element.remove();
-    }
-    this.#sortComponent = new SortView(this.#handleSortTypeChange.bind(this));
-    this.#tripEventsContainer.prepend(this.#sortComponent.element);
-  }
-
-  #handleSortTypeChange(sortType) {
-    if (this.#currentSortType === sortType) {
-      return;
-    }
-    this.#currentSortType = sortType;
-    this.#renderPoints();
-  }
-
-  #handleFilterChange() {
-    this.#currentSortType = 'day';
-    this.#renderSort();
-    this.#renderPoints();
-  }
-
-  #renderPoints() {
-    const allPoints = this.#tripModel.getPoints();
-    const activeFilter = this.#filterModel.getFilter();
-    const filteredPoints = this.#tripModel.getPointsFilteredBy(activeFilter, allPoints);
-    const sortedPoints = this.#tripModel.getPointsSortedBy(this.#currentSortType, filteredPoints);
-    this.#clearPointsList();
-
-    if (sortedPoints.length === 0) {
-      const emptyView = new EmptyListView(activeFilter);
-      render(emptyView, this.#listContainer);
+  renderTripEvents() {
+    const pointsContainer = document.querySelector('.trip-events');
+    if (!pointsContainer) {
       return;
     }
 
-    sortedPoints.forEach((point) => {
-      const destination = this.#tripModel.getDestinationById(point.destination);
-      const offers = this.#tripModel.getOffersByIds(point.offers);
-      const allOffersByType = this.#tripModel.getOffersByType(point.type);
-      const pointPresenter = new PointPresenter(
-        this.#listContainer,
-        this.#handlePointDataChange.bind(this),
-        this.#handleModeChange.bind(this),
-        this.#tripModel.getOffersByType.bind(this.#tripModel),
-        this.#tripModel.getDestinationByName.bind(this.#tripModel),
-        this.#handlePointDelete.bind(this)
-      );
-      pointPresenter.init(point, destination, offers, allOffersByType);
-      this.#pointPresenters.set(point.id, pointPresenter);
+    this.pointPresenters.forEach((presenter) => {
+      if (presenter.destroy) {
+        presenter.destroy();
+      }
+    });
+    this.pointPresenters = [];
+
+    const sortElement = pointsContainer.querySelector('.trip-events__sort');
+    pointsContainer.innerHTML = '';
+    if (sortElement) {
+      pointsContainer.appendChild(sortElement);
+    }
+
+    if (this.tripModel.isLoading()) {
+      this.renderLoading(pointsContainer);
+      return;
+    }
+
+    const waypoints = this.tripModel.getWaypoints();
+    const activeFilter = this.tripModel.getActiveFilter();
+    const filter = this.tripModel.getFilters().find((f) => f.type === activeFilter);
+    const emptyMessage = filter ? filter.emptyMessage : 'Click New Event to create your first point';
+
+    if (waypoints.length === 0 && !this.isNewPointMode) {
+      this.renderEmptyList(pointsContainer, emptyMessage);
+      return;
+    }
+
+    if (waypoints.length > 0 && !pointsContainer.querySelector('.trip-events__sort')) {
+      this.renderSort();
+    }
+
+    waypoints.forEach((point) => {
+      this.renderPoint(point, pointsContainer);
     });
   }
 
-  #clearPointsList() {
-    this.#pointPresenters.forEach((presenter) => presenter.destroy());
-    this.#pointPresenters.clear();
-    this.#activePointPresenter = null;
-    while (this.#listContainer.firstChild) {
-      this.#listContainer.removeChild(this.#listContainer.firstChild);
-    }
+  renderLoading(container) {
+    this.loadingComponent = new LoadingView();
+    render(this.loadingComponent, container);
   }
 
-  #handlePointDataChange = async (updatedPoint) => {
-    await this.#tripModel.updatePoint(updatedPoint);
-  };
+  renderEmptyList(container, message) {
+    this.emptyListComponent = new EmptyListView(message);
+    render(this.emptyListComponent, container);
+  }
 
-  #handlePointDelete = async (pointId) => {
-    await this.#tripModel.deletePoint(pointId);
-  };
+  renderPoint(waypoint, container) {
+    const destination = this.tripModel.getDestinationById(waypoint.destinationId);
+    const offers = this.tripModel.getOffersForWaypoint(waypoint.id);
+    const allOffers = this.tripModel.getAllOffers();
+    const allDestinations = this.tripModel.getDestinations();
 
-  #handleModeChange = (activePresenter) => {
-    this.#pointPresenters.forEach((presenter) => {
-      if (presenter !== activePresenter) {
+    const pointPresenter = new PointPresenter(
+      container,
+      async (updatedWaypoint) => {
+        const result = await this.tripModel.updateWaypoint(updatedWaypoint);
+        return result;
+      },
+      () => this.handleModeChange(),
+      async (deletedWaypoint) => {
+        const result = await this.tripModel.deleteWaypoint(deletedWaypoint.id);
+        if (result.success) {
+          this.renderTripEvents();
+        }
+        return result;
+      },
+      allOffers,
+      allDestinations,
+    );
+
+    pointPresenter.setCallbacks(
+      (id) => this.tripModel.getDestinationById(id),
+      (id) => this.tripModel.getOffersForWaypoint(id),
+    );
+
+    pointPresenter.init(waypoint, destination, offers);
+    this.pointPresenters.push(pointPresenter);
+  }
+
+  handleModeChange() {
+    this.pointPresenters.forEach((presenter) => {
+      if (presenter && typeof presenter.resetView === 'function') {
         presenter.resetView();
       }
     });
-    this.#activePointPresenter = activePresenter;
-  };
-
-  #renderCreateForm() {
-    const destinations = this.#tripModel.getDestinations();
-    const allOffers = this.#tripModel.getOffers();
-    this.#createFormComponent = new PointFormView(destinations, allOffers);
-    if (this.#newEventButton) {
-      this.#newEventButton.insertAdjacentElement('afterend', this.#createFormComponent.element);
-      this.#createFormComponent.element.style.display = 'none';
-    } else {
-      render(this.#createFormComponent, this.#tripMain);
-      this.#createFormComponent.element.style.display = 'none';
-    }
-    this.#newEventButton?.addEventListener('click', () => this.#showCreateForm());
-  }
-
-  #showCreateForm() {
-    if (this.#isCreateFormShown) {
-      return;
-    }
-    if (this.#activePointPresenter) {
-      this.#activePointPresenter.resetView();
-    }
-    this.#filterModel.setFilter('everything');
-    this.#currentSortType = 'day';
-    this.#renderSort();
-
-    this.#createFormComponent.element.style.display = '';
-    this.#isCreateFormShown = true;
-
-    this.#createFormComponent.setSubmitHandler(async (newPoint) => {
-      this.#createFormComponent.setSavingState(true);
-      try {
-        await this.#tripModel.addPoint(newPoint);
-        this.#hideCreateForm();
-      } catch {
-        this.#createFormComponent.shake();
-      } finally {
-        this.#createFormComponent.setSavingState(false);
-      }
-    });
-    this.#createFormComponent.setCloseHandler(() => this.#hideCreateForm());
-    this.#createFormComponent.setEscKeydownHandler(() => this.#hideCreateForm());
-  }
-
-  #hideCreateForm() {
-    this.#createFormComponent.element.style.display = 'none';
-    this.#isCreateFormShown = false;
+    this.isNewPointMode = false;
   }
 }

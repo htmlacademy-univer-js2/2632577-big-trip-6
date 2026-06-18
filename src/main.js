@@ -1,19 +1,22 @@
-import ApiService from './api-service.js';
 import TripModel from './model/trip-model.js';
-import FilterModel from './model/filter-model.js';
 import TripPresenter from './presenter/trip-presenter.js';
-import FilterPresenter from './presenter/filter-presenter.js';
+import FiltersPresenter from './presenter/filters-presenter.js';
+import TripInfoPresenter from './presenter/trip-info-presenter.js';
+import Api from './api.js';
 
-const END_POINT = 'https://21.objects.pages.academy/big-trip';
-const AUTHORIZATION = 'Basic bigtrip2025superkey';
-const api = new ApiService(END_POINT, AUTHORIZATION);
-
-const tripModel = new TripModel(api);
-const filterModel = new FilterModel();
-
+const tripEventsSection = document.querySelector('.trip-events');
 const filtersContainer = document.querySelector('.trip-controls__filters');
-const filterPresenter = new FilterPresenter(filtersContainer, filterModel, tripModel);
-filterPresenter.init();
+const tripInfoContainer = document.querySelector('.trip-main__trip-info');
 
-const tripPresenter = new TripPresenter(tripModel, filterModel);
-tripPresenter.init();
+const api = new Api();
+const tripModel = new TripModel(api);
+
+const filtersPresenter = new FiltersPresenter(filtersContainer, tripModel);
+const tripPresenter = new TripPresenter(tripEventsSection, tripModel);
+const tripInfoPresenter = new TripInfoPresenter(tripInfoContainer, tripModel);
+
+tripModel.init().then(() => {
+  filtersPresenter.init();
+  tripPresenter.init();
+  tripInfoPresenter.init();
+}).catch(() => {});
